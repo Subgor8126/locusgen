@@ -1,0 +1,13 @@
+Django==4.2.7
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+psycopg2-binary==2.9.7
+python-decouple==3.8
+PyJWT==2.8.0
+cryptography==41.0.7
+requests==2.31.0
+boto3==1.29.7
+django-storages==1.14.2
+
+# Bedrock AgentCore SDK for agent integration
+bedrock-agentcore>=1.0.0

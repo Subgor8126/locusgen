@@ -1,0 +1,41 @@
+{
+  "model": {
+    "model_id": "amazon.nova-pro-v1:0",
+    "max_tokens": 4000,
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "params": {
+      "temperature": 0.7,
+      "top_p": 0.9
+    }
+  },
+  "conversation": {
+    "window_size": 20,
+    "should_truncate_results": true,
+    "max_context_messages": 20,
+    "enable_summarization": false,
+    "summary_ratio": 0.3,
+    "preserve_recent_messages": 10
+  },
+  "mcp_servers": [
+    {
+      "name": "sketchfab_search",
+      "transport_type": "stdio",
+      "connection_params": {
+        "command": "python",
+        "args": ["tools/sketchfab_mcp_server.py"]
+      },
+      "enabled": false,
+      "auto_retry": true,
+      "timeout": 30
+    }
+  ],
+  "environment": "development",
+  "debug_mode": true,
+  "log_level": "INFO",
+  "aws_region": "us-east-1",
+  "bedrock_runtime_endpoint": null,
+  "max_processing_time": 300,
+  "enable_health_checks": true,
+  "health_check_interval": 60
+}

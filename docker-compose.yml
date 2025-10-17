@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for local development
+  postgres:
+    image: postgres:15
+    container_name: locusgen_postgres
+    environment:
+      POSTGRES_DB: locusgen_dev
+      POSTGRES_USER: locusgen
+      POSTGRES_PASSWORD: locusgen_dev_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db_init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U locusgen -d locusgen_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - locusgen_network
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: locusgen_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@locusgen.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - locusgen_network
+    profiles:
+      - tools  # Only start with --profile tools
+
+volumes:
+  postgres_data:
+
+networks:
+  locusgen_network:
+    driver: bridge

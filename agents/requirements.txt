@@ -1,0 +1,28 @@
+# Strands Agents SDK
+strands-agents>=0.1.0
+
+# AWS SDK for Bedrock integration (Nova Pro requires recent versions)
+boto3>=1.35.0
+botocore>=1.35.0
+
+# HTTP client for API calls
+httpx>=0.25.0
+requests>=2.31.0
+
+# JSON handling and data validation
+pydantic>=2.5.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# Logging and debugging
+structlog>=23.2.0
+
+# MCP (Model Context Protocol) support
+mcp>=1.0.0
+
+# Bedrock AgentCore Runtime SDK
+bedrock-agentcore>=1.0.0
+
+# Additional utilities
+typing-extensions>=4.8.0
