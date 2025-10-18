@@ -408,7 +408,7 @@ from pydantic import BaseModel
 from typing import Dict, Any
 
 # Create FastAPI app
-app = FastAPI(title="LocusGen Agent System", version="1.0.0")
+app = FastAPI(title="LocusGen Agent System", version="1.0.1")
 
 class InvocationRequest(BaseModel):
     """Request model for /invocations endpoint"""
