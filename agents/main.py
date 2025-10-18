@@ -402,99 +402,115 @@ def initialize_agent_system(model_config: Optional[Dict[str, Any]] = None) -> Lo
     return orchestrator
 
 
-# Bedrock AgentCore Runtime Integration
-try:
-    from bedrock_agentcore.runtime import BedrockAgentCoreApp
-    AGENTCORE_AVAILABLE = True
-except ImportError:
-    AGENTCORE_AVAILABLE = False
-    logger.warning("Bedrock AgentCore SDK not available - running in standalone mode")
+# FastAPI app for AgentCore HTTP endpoints
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import Dict, Any
 
-# Create AgentCore app if available
-if AGENTCORE_AVAILABLE:
-    app = BedrockAgentCoreApp()
+# Create FastAPI app
+app = FastAPI(title="LocusGen Agent System", version="1.0.0")
+
+class InvocationRequest(BaseModel):
+    """Request model for /invocations endpoint"""
+    prompt: str
+    conversation_history: List[Dict[str, Any]] = []
+
+class InvocationResponse(BaseModel):
+    """Response model for /invocations endpoint"""
+    content: str  # Changed from 'message' to 'content' to match backend expectation
+    scene_json: Dict[str, Any]
+    metadata: Dict[str, Any]
+    processing_time: float
+
+@app.post("/invocations", response_model=InvocationResponse)
+async def invoke_agent(request: InvocationRequest):
+    """
+    AgentCore /invocations endpoint for LocusGen agent system.
     
-    @app.entrypoint
-    def agent_invocation(payload, context):
-        """
-        Bedrock AgentCore entrypoint for LocusGen agent system.
+    Args:
+        request: Request containing user prompt and conversation history
         
-        Args:
-            payload: Request payload containing user message and conversation context
-            context: AgentCore context with session information
-            
-        Returns:
-            Agent response with message, scene_json, and metadata
-        """
-        try:
-            # Extract user message from payload
-            user_message = payload.get("prompt", payload.get("message", ""))
-            if not user_message:
-                return {
-                    "error": "No message found in payload. Please provide 'prompt' or 'message' field.",
-                    "scene_json": {},
-                    "metadata": {"error": True}
-                }
-            
-            # Extract conversation history from payload
-            conversation_history = []
-            if "conversation_history" in payload:
-                history_data = payload["conversation_history"]
-                for msg in history_data:
-                    conversation_history.append(ConversationMessage(
-                        role=msg.get("role", "user"),
-                        content=msg.get("content", ""),
-                        timestamp=datetime.fromisoformat(msg.get("timestamp", datetime.now().isoformat())),
-                        metadata=msg.get("metadata", {})
-                    ))
-            
-            # Determine if this is the first message
-            is_first_message = len(conversation_history) == 0
-            
-            # Initialize orchestrator
-            orchestrator = get_orchestrator()
-            
-            # Process message
-            response = orchestrator.process_message(
-                user_message=user_message,
-                conversation_history=conversation_history,
-                is_first_message=is_first_message
+    Returns:
+        Agent response with message, scene_json, and metadata
+    """
+    try:
+        # Extract user message from request
+        user_message = request.prompt
+        if not user_message:
+            raise HTTPException(
+                status_code=400, 
+                detail="No prompt provided. Please provide a 'prompt' field."
             )
-            
-            # Return response in AgentCore format
-            return {
-                "message": response.message,
-                "scene_json": response.scene_json,
-                "metadata": response.metadata,
-                "processing_time": response.processing_time
-            }
-            
-        except Exception as e:
-            logger.error(f"Error in AgentCore entrypoint: {str(e)}")
-            return {
-                "error": f"Agent processing error: {str(e)}",
-                "scene_json": {},
-                "metadata": {"error": True, "error_message": str(e)}
-            }
-
-
-if __name__ == "__main__":
-    if AGENTCORE_AVAILABLE:
-        # Run as Bedrock AgentCore Runtime
-        logger.info("Starting LocusGen Agent System as Bedrock AgentCore Runtime")
-        app.run()
-    else:
-        # Example usage for testing
-        orchestrator = initialize_agent_system()
         
-        # Test with empty conversation
-        test_message = "Create a cozy living room with a fireplace"
+        # Extract conversation history from request
+        conversation_history = []
+        for msg in request.conversation_history:
+            conversation_history.append(ConversationMessage(
+                role=msg.get("role", "user"),
+                content=msg.get("content", ""),
+                timestamp=datetime.fromisoformat(msg.get("timestamp", datetime.now().isoformat())),
+                metadata=msg.get("metadata", {})
+            ))
+        
+        # Determine if this is the first message
+        is_first_message = len(conversation_history) == 0
+        
+        # Initialize orchestrator
+        orchestrator = get_orchestrator()
+        
+        # Process message
         response = orchestrator.process_message(
-            user_message=test_message,
-            conversation_history=[],
-            is_first_message=True
+            user_message=user_message,
+            conversation_history=conversation_history,
+            is_first_message=is_first_message
         )
         
-        print(f"Response: {response.message}")
-        print(f"Scene JSON: {response.scene_json}")
-        print(f"Metadata: {response.metadata}")
+        # Return response in AgentCore format
+        return InvocationResponse(
+            content=response.message,  # Map 'message' to 'content' for backend compatibility
+            scene_json=response.scene_json,
+            metadata=response.metadata,
+            processing_time=response.processing_time
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in /invocations endpoint: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Agent processing error: {str(e)}"
+        )
+
+@app.get("/ping")
+async def ping():
+    """
+    AgentCore /ping endpoint for health checks.
+    
+    Returns:
+        Health status information
+    """
+    try:
+        orchestrator = get_orchestrator()
+        health_status = orchestrator.get_health_status()
+        return {"status": "healthy", "details": health_status}
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return {"status": "unhealthy", "error": str(e)}
+
+# Test endpoint for local development
+@app.get("/")
+async def root():
+    """Root endpoint for basic connectivity testing"""
+    return {
+        "service": "LocusGen Agent System",
+        "status": "running",
+        "endpoints": {
+            "invocations": "POST /invocations",
+            "ping": "GET /ping"
+        }
+    }
+
+if __name__ == "__main__":
+    # For local testing
+    import uvicorn
+    logger.info("Starting LocusGen Agent System as FastAPI server")
+    uvicorn.run(app, host="0.0.0.0", port=8080)

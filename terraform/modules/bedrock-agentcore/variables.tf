@@ -14,23 +14,11 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "model_id" {
-  description = "Bedrock model ID for the agent"
-  type        = string
-  default     = "amazon.nova-pro-v1:0"
-}
-
-variable "max_tokens" {
-  description = "Maximum tokens for model responses"
-  type        = string
-  default     = "4000"
-}
-
-variable "temperature" {
-  description = "Model temperature for response generation"
-  type        = string
-  default     = "0.7"
-}
+# Model configuration variables removed - will be set manually in AgentCore Console
+# Default values to use:
+# - model_id: "amazon.nova-pro-v1:0"
+# - max_tokens: "4000" 
+# - temperature: "0.7"
 
 variable "sketchfab_api_key" {
   description = "Sketchfab API key for MCP server"

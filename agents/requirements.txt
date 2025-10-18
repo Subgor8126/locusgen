@@ -21,8 +21,9 @@ structlog>=23.2.0
 # MCP (Model Context Protocol) support
 mcp>=1.0.0
 
-# Bedrock AgentCore Runtime SDK
-bedrock-agentcore>=1.0.0
+# FastAPI for AgentCore HTTP endpoints
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
 
 # Additional utilities
 typing-extensions>=4.8.0

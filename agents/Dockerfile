@@ -1,5 +1,5 @@
-# LocusGen Agents System Dockerfile
-FROM python:3.11-slim
+# LocusGen Agents System Dockerfile - ARM64 for AgentCore
+FROM --platform=linux/arm64 python:3.11-slim
 
 # Set working directory
 WORKDIR /app
@@ -43,8 +43,8 @@ ENV LOCUSGEN_ENVIRONMENT=production
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "from main import get_orchestrator; print(get_orchestrator().get_health_status())"
 
-# Expose port (if running as HTTP service)
-EXPOSE 8001
+# Expose port 8080 (required by AgentCore)
+EXPOSE 8080
 
-# Default command - will run as Bedrock AgentCore Runtime if SDK is available
-CMD ["python", "main.py"]
+# Default command - run FastAPI server for AgentCore
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

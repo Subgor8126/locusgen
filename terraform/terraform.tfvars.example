@@ -1,0 +1,13 @@
+# Terraform Variables for Agent System Only
+# Copy to terraform.tfvars and fill in your values
+
+# Project Configuration
+project_name = "locusgen"
+environment  = "dev"
+aws_region   = "us-east-1"
+
+# Agent System Secrets
+sketchfab_api_key = "your-real-sketchfab-api-key-here"
+
+# Note: No AWS access keys needed - using IAM roles!
+# Django/Frontend deployment will be added later

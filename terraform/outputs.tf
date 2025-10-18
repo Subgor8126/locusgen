@@ -31,9 +31,9 @@ output "dynamodb_table_name" {
 }
 
 # Bedrock AgentCore outputs
-output "agent_runtime_arn" {
-  description = "ARN of the Bedrock AgentCore Runtime"
-  value       = module.bedrock_agentcore.agent_runtime_arn
+output "agent_runtime_role_arn" {
+  description = "IAM Role ARN for AgentCore Runtime (use when creating manually)"
+  value       = module.bedrock_agentcore.agent_runtime_role_arn
 }
 
 output "ecr_repository_url" {
@@ -44,4 +44,10 @@ output "ecr_repository_url" {
 output "ecr_repository_name" {
   description = "Name of the ECR repository"
   value       = module.bedrock_agentcore.ecr_repository_name
+}
+
+output "manual_setup_values" {
+  description = "All values needed for manual AgentCore setup"
+  value       = module.bedrock_agentcore.manual_setup_values
+  sensitive   = true
 }

@@ -41,4 +41,9 @@ module "bedrock_agentcore" {
   s3_bucket_arn       = module.asset_cdn.s3_bucket_arn
   dynamodb_table_name = module.asset_cdn.dynamodb_table_name
   dynamodb_table_arn  = module.asset_cdn.dynamodb_table_arn
+  
+  # Optional model configuration (uses defaults if not specified)
+  # model_id     = var.model_id
+  # max_tokens   = var.max_tokens  
+  # temperature  = var.temperature
 }
