@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Build Sketchfab MCP server
-WORKDIR /app/tools/sketchfab-mcp-server
+WORKDIR /app/tools/sketchfab-mcp
 RUN npm install && npm run build
 
 # Return to main working directory
