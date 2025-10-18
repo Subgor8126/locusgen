@@ -412,8 +412,9 @@ app = FastAPI(title="LocusGen Agent System", version="1.0.0")
 
 class InvocationRequest(BaseModel):
     """Request model for /invocations endpoint"""
-    # AgentCore sends nested input structure
-    input: Dict[str, Any]
+    # Handle both formats: direct prompt or nested input structure
+    input: Optional[Dict[str, Any]] = None
+    prompt: Optional[str] = None
     conversation_history: List[Dict[str, Any]] = []
 
 class InvocationResponse(BaseModel):
@@ -435,12 +436,23 @@ async def invoke_agent(request: InvocationRequest):
         Agent response with message, scene_json, and metadata
     """
     try:
-        # Extract user message from request (AgentCore sends nested input)
-        user_message = request.input.get("prompt", "")
-        if not user_message:
+        # Debug logging
+        logger.info(f"Received request: input={request.input}, prompt={request.prompt}")
+        
+        # Extract user message from request (handle both formats)
+        if request.input and "prompt" in request.input:
+            # AgentCore format: {"input": {"prompt": "..."}}
+            user_message = request.input["prompt"]
+            logger.info(f"Using AgentCore format, extracted prompt: {user_message}")
+        elif request.prompt:
+            # Direct format: {"prompt": "..."}
+            user_message = request.prompt
+            logger.info(f"Using direct format, prompt: {user_message}")
+        else:
+            logger.error(f"No prompt found in request: {request}")
             raise HTTPException(
                 status_code=400, 
-                detail="No prompt provided in input. Please provide input.prompt field."
+                detail="No prompt provided. Please provide either 'prompt' or 'input.prompt' field."
             )
         
         # Extract conversation history from request
