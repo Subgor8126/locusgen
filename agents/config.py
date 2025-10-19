@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelConfig:
     """Configuration for the language model."""
-    model_id: str = "amazon.nova-pro-v1:0"
+    model_id: str = "us.amazon.nova-pro-v1:0"
     max_tokens: int = 4000
     temperature: float = 0.7
     top_p: float = 0.9

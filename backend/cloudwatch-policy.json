@@ -1,0 +1,19 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "logs:DescribeLogGroups",
+                "logs:DescribeLogStreams"
+            ],
+            "Resource": [
+                "arn:aws:logs:us-east-1:975050380826:log-group:/aws/bedrock-agentcore/runtimes/*",
+                "arn:aws:logs:us-east-1:975050380826:log-group:/aws/bedrock-agentcore/runtimes/*:*"
+            ]
+        }
+    ]
+}

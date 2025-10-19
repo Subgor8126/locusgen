@@ -113,6 +113,32 @@ resource "aws_iam_policy" "agent_runtime_s3_dynamodb" {
   })
 }
 
+# CloudWatch Logs Policy for AgentCore Runtime
+resource "aws_iam_policy" "agent_runtime_cloudwatch" {
+  name        = "${var.project_name}-${var.environment}-agent-cloudwatch-policy"
+  description = "CloudWatch logs policy for AgentCore Runtime"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = [
+          "arn:aws:logs:${var.aws_region}:*:log-group:/aws/bedrock-agentcore/runtimes/*",
+          "arn:aws:logs:${var.aws_region}:*:log-group:/aws/bedrock-agentcore/runtimes/*:*"
+        ]
+      }
+    ]
+  })
+}
+
 # Attach Policies to Role
 resource "aws_iam_role_policy_attachment" "agent_runtime_ecr" {
   role       = aws_iam_role.agent_runtime_role.name
@@ -127,4 +153,9 @@ resource "aws_iam_role_policy_attachment" "agent_runtime_bedrock" {
 resource "aws_iam_role_policy_attachment" "agent_runtime_s3_dynamodb" {
   role       = aws_iam_role.agent_runtime_role.name
   policy_arn = aws_iam_policy.agent_runtime_s3_dynamodb.arn
+}
+
+resource "aws_iam_role_policy_attachment" "agent_runtime_cloudwatch" {
+  role       = aws_iam_role.agent_runtime_role.name
+  policy_arn = aws_iam_policy.agent_runtime_cloudwatch.arn
 }

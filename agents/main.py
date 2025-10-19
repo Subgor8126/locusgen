@@ -56,7 +56,8 @@ try:
         creative_agent,
         asset_curator_agent, 
         scene_generator_agent,
-        cdn_processor_tool
+        cdn_processor_tool,
+        set_mcp_tools
     )
 except ImportError:
     # Handle relative import issues in testing
@@ -65,7 +66,8 @@ except ImportError:
             creative_agent,
             asset_curator_agent, 
             scene_generator_agent,
-            cdn_processor_tool
+            cdn_processor_tool,
+            set_mcp_tools
         )
     except ImportError:
         # Mock tools for testing
@@ -73,6 +75,7 @@ except ImportError:
         def asset_curator_agent(brief): return f"Mock asset curator: {brief}"
         def scene_generator_agent(brief, assets): return f"Mock scene generator: {brief}, {assets}"
         def cdn_processor_tool(scene): return scene
+        def set_mcp_tools(tools): pass
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -126,6 +129,10 @@ class LocusGenAgentOrchestrator:
             # Note: cdn_processor_tool is used directly, not as a Strands tool
         ]
         
+        # Initialize MCP client for Sketchfab
+        self.mcp_client = None
+        self._setup_mcp_client()
+        
         if not STRANDS_AVAILABLE:
             logger.warning("Strands Agents SDK not available - running in mock mode")
         
@@ -134,13 +141,44 @@ class LocusGenAgentOrchestrator:
     def _get_default_model_config(self) -> Dict[str, Any]:
         """Get default model configuration for Amazon Nova Pro."""
         return {
-            "model_id": "amazon.nova-pro-v1:0",
+            "model_id": "us.amazon.nova-pro-v1:0",
             "max_tokens": 4000,
             "params": {
                 "temperature": 0.7,
                 "top_p": 0.9
             }
         }
+    
+    def _setup_mcp_client(self):
+        """Set up MCP client for Sketchfab integration."""
+        try:
+            if not STRANDS_AVAILABLE:
+                return
+            
+            from strands.tools.mcp import MCPClient
+            from mcp import stdio_client, StdioServerParameters
+            import os
+            
+            # Get Sketchfab API key from environment
+            sketchfab_api_key = os.getenv('MCP_SKETCHFAB_API_KEY', '522d76350b204256bdfe0255f6e4ebde')
+            
+            if not sketchfab_api_key:
+                logger.warning("No Sketchfab API key found, MCP integration disabled")
+                return
+            
+            # Create MCP client for Sketchfab server using stdio transport
+            self.mcp_client = MCPClient(lambda: stdio_client(
+                StdioServerParameters(
+                    command="node",
+                    args=["C:\\Users\\Admin\\Desktop\\locusgen\\agents\\tools\\sketchfab-mcp\\build\\index.js", "--api-key", sketchfab_api_key]
+                )
+            ))
+            
+            logger.info("MCP client initialized for Sketchfab integration")
+            
+        except Exception as e:
+            logger.warning(f"Failed to initialize MCP client: {str(e)}")
+            self.mcp_client = None
     
     def _create_agent_instance(self, conversation_history: List[ConversationMessage]) -> Agent:
         """
@@ -156,10 +194,12 @@ class LocusGenAgentOrchestrator:
         strands_messages = self._convert_to_strands_format(conversation_history)
         
         # Create the model - will use BedrockModel for Amazon Nova Pro
+        # Use more conservative parameters for tool use
         model = BedrockModel(
             model_id=self.model_config["model_id"],
             max_tokens=self.model_config["max_tokens"],
-            params=self.model_config["params"]
+            temperature=0.3,  # Lower temperature for more reliable tool use
+            top_p=0.8         # More focused sampling
         )
         
         # Create agent with conversation history and tools
@@ -251,6 +291,94 @@ Remember: You orchestrate the process but rely on specialized agents for the act
         start_time = datetime.now()
         
         try:
+            # Set up MCP tools if available
+            if self.mcp_client:
+                try:
+                    with self.mcp_client:
+                        # Get MCP tools and pass them to specialized agents
+                        mcp_tools = self.mcp_client.list_tools_sync()
+                        logger.info(f"Loaded {len(mcp_tools)} MCP tools")
+                        
+                        # Log tool names for debugging
+                        tool_names = [tool.name if hasattr(tool, 'name') else str(tool) for tool in mcp_tools]
+                        logger.info(f"MCP tool names: {tool_names}")
+                        
+                        # Log detailed tool information for debugging
+                        for i, tool in enumerate(mcp_tools):
+                            logger.info(f"Tool {i}: {tool}")
+                            if hasattr(tool, 'mcp_tool'):
+                                mcp_tool = tool.mcp_tool
+                                logger.info(f"  - mcp_tool name: {getattr(mcp_tool, 'name', 'N/A')}")
+                                logger.info(f"  - mcp_tool description: {getattr(mcp_tool, 'description', 'N/A')}")
+                            if hasattr(tool, '__dict__'):
+                                logger.info(f"  - attributes: {list(tool.__dict__.keys())}")
+                        
+                        # For now, pass all MCP tools to avoid filtering issues
+                        logger.info(f"Using all {len(mcp_tools)} MCP tools")
+                        
+                        # Pass all MCP tools to specialized agents
+                        from specialized_agents import set_mcp_tools
+                        set_mcp_tools(mcp_tools)
+                        
+                        # Create agent instance with conversation history
+                        agent = self._create_agent_instance(conversation_history)
+                        
+                        # Process the message within MCP context
+                        logger.info(f"Processing message: {user_message[:100]}...")
+                        result = agent(user_message)
+                        
+                        # Extract response components
+                        logger.info(f"Result type: {type(result)}")
+                        logger.info(f"Result content: {result}")
+                        
+                        # Handle Strands AgentResult object
+                        if hasattr(result, 'message'):
+                            raw_message = result.message
+                            if isinstance(raw_message, dict) and 'content' in raw_message:
+                                content = raw_message['content']
+                                if isinstance(content, list) and len(content) > 0 and 'text' in content[0]:
+                                    response_message = content[0]['text']
+                                else:
+                                    response_message = str(content)
+                            else:
+                                response_message = str(raw_message)
+                        elif hasattr(result, 'content'):
+                            response_message = result.content
+                        elif isinstance(result, dict) and 'content' in result:
+                            response_message = result['content']
+                        elif isinstance(result, dict) and 'message' in result:
+                            response_message = result['message']
+                        else:
+                            response_message = str(result)
+                        
+                        logger.info(f"Extracted response_message: {response_message}")
+                        
+                        scene_json = self._extract_scene_json(result)
+                        metadata = self._extract_metadata(result, is_first_message)
+                        
+                        # Calculate processing time
+                        processing_time = (datetime.now() - start_time).total_seconds()
+                        metadata["processing_time"] = processing_time
+                        
+                        logger.info(f"Message processed successfully in {processing_time:.2f}s")
+                        
+                        return AgentResponse(
+                            message=response_message,
+                            scene_json=scene_json,
+                            metadata=metadata,
+                            processing_time=processing_time
+                        )
+                        
+                except Exception as mcp_error:
+                    logger.warning(f"MCP processing failed: {str(mcp_error)}, falling back to non-MCP mode")
+            
+            # Fallback: Process without MCP tools
+            logger.info("Processing without MCP tools")
+            
+            # Clear MCP tools for specialized agents
+            from specialized_agents import set_mcp_tools
+            set_mcp_tools([])
+            
             # Create agent instance with conversation history
             agent = self._create_agent_instance(conversation_history)
             
@@ -259,7 +387,31 @@ Remember: You orchestrate the process but rely on specialized agents for the act
             result = agent(user_message)
             
             # Extract response components
-            response_message = result.message if hasattr(result, 'message') else str(result)
+            logger.info(f"Result type: {type(result)}")
+            logger.info(f"Result content: {result}")
+            
+            # Handle Strands AgentResult object
+            if hasattr(result, 'message'):
+                raw_message = result.message
+                if isinstance(raw_message, dict) and 'content' in raw_message:
+                    content = raw_message['content']
+                    if isinstance(content, list) and len(content) > 0 and 'text' in content[0]:
+                        response_message = content[0]['text']
+                    else:
+                        response_message = str(content)
+                else:
+                    response_message = str(raw_message)
+            elif hasattr(result, 'content'):
+                response_message = result.content
+            elif isinstance(result, dict) and 'content' in result:
+                response_message = result['content']
+            elif isinstance(result, dict) and 'message' in result:
+                response_message = result['message']
+            else:
+                response_message = str(result)
+            
+            logger.info(f"Extracted response_message: {response_message}")
+            
             scene_json = self._extract_scene_json(result)
             metadata = self._extract_metadata(result, is_first_message)
             
@@ -526,4 +678,4 @@ if __name__ == "__main__":
     # For local testing
     import uvicorn
     logger.info("Starting LocusGen Agent System as FastAPI server")
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="127.0.0.1", port=8081)

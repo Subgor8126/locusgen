@@ -34,7 +34,7 @@ def test_mcp_server_direct():
         mcp_client = MCPClient(lambda: stdio_client(
             StdioServerParameters(
                 command="node",
-                args=["tools/sketchfab-mcp-server/build/index.js", "--api-key", api_key]
+                args=["tools/sketchfab-mcp/build/index.js", "--api-key", api_key]
             )
         ))
         

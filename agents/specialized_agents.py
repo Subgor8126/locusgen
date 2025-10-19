@@ -180,7 +180,7 @@ def creative_agent(user_request: str) -> str:
         
         # Create specialized creative agent
         creative_agent_instance = Agent(
-            model=BedrockModel(model_id="amazon.nova-pro-v1:0"),
+            model=BedrockModel(model_id="us.amazon.nova-pro-v1:0"),
             system_prompt=CREATIVE_AGENT_PROMPT
         )
         
@@ -209,6 +209,15 @@ def creative_agent(user_request: str) -> str:
         return f"Error generating creative brief: {str(e)}"
 
 
+# Global variable to store MCP tools passed from orchestrator
+_mcp_tools = []
+
+def set_mcp_tools(tools: List[Any]):
+    """Set MCP tools to be used by specialized agents."""
+    global _mcp_tools
+    _mcp_tools = tools
+    logger.info(f"Set {len(tools)} MCP tools for specialized agents")
+
 @tool
 def asset_curator_agent(creative_brief: str) -> str:
     """
@@ -229,70 +238,36 @@ def asset_curator_agent(creative_brief: str) -> str:
         if not STRANDS_AVAILABLE:
             return f"Mock Asset Curator: Found fireplace, sofa, coffee table assets for creative brief"
         
-        # Set up MCP client for Sketchfab search
-        sketchfab_tools = []
-        sketchfab_mcp_client = None
-        
-        try:
-            # Get Sketchfab API key from environment
-            import os
-            sketchfab_api_key = os.getenv('MCP_SKETCHFAB_API_KEY', '')
+        # Check if MCP tools are available
+        global _mcp_tools
+        if _mcp_tools:
+            logger.info(f"Using {len(_mcp_tools)} MCP tools for asset curation")
             
-            if not sketchfab_api_key:
-                logger.warning("No Sketchfab API key found in environment variables")
-                raise Exception("Sketchfab API key not configured")
+            # Create specialized asset curator agent with MCP tools
+            asset_curator_instance = Agent(
+                model=BedrockModel(
+                    model_id="us.amazon.nova-pro-v1:0",
+                    temperature=0.1,
+                    top_p=0.9,
+                    max_tokens=4000
+                ),
+                system_prompt=ASSET_CURATOR_PROMPT,
+                tools=_mcp_tools
+            )
             
-            # Create MCP client for Sketchfab server using stdio transport
-            sketchfab_mcp_client = MCPClient(lambda: stdio_client(
-                StdioServerParameters(
-                    command="node",
-                    args=["tools/sketchfab-mcp-server/build/index.js", "--api-key", sketchfab_api_key]
-                )
-            ))
+            # Format the query for the asset curator with very simple instructions
+            formatted_query = f"""
+            Search for a car model on Sketchfab. Use the search tool to find one downloadable car model.
             
-            # Use the MCP client in context manager to get tools
-            with sketchfab_mcp_client:
-                sketchfab_tools = sketchfab_mcp_client.list_tools_sync()
-                logger.info(f"Loaded {len(sketchfab_tools)} Sketchfab MCP tools")
-                
-                # Create specialized asset curator agent with Sketchfab tools
-                asset_curator_instance = Agent(
-                    model=BedrockModel(model_id="amazon.nova-pro-v1:0"),
-                    system_prompt=ASSET_CURATOR_PROMPT,
-                    tools=sketchfab_tools
-                )
-                
-                # Format the query for the asset curator
-                formatted_query = f"""
-                Creative Brief: {creative_brief}
-                
-                Please search for and curate 3D assets that match this creative brief. Use the Sketchfab search tools to find appropriate models.
-                
-                For each asset you find, provide:
-                1. Asset name and description
-                2. Sketchfab model ID and URL
-                3. Quality assessment and suitability for the scene
-                4. Suggested positioning and scale information
-                5. Download/licensing information
-                
-                Focus on finding 3-5 key assets that will create the foundation of this scene.
-                Use specific search terms based on the creative brief requirements.
-                """
-                
-                response = asset_curator_instance(formatted_query)
-                
-                # Extract response text
-                if hasattr(response, 'message'):
-                    return str(response.message)
-                else:
-                    return str(response)
-                    
-        except Exception as mcp_error:
-            logger.warning(f"MCP client error: {str(mcp_error)}, falling back to non-MCP mode")
+            Just search for "car" and pick the first good result.
+            """
+            
+        else:
+            logger.warning("No MCP tools available, falling back to non-MCP mode")
             
             # Fallback: Create agent without MCP tools
             asset_curator_instance = Agent(
-                model=BedrockModel(model_id="amazon.nova-pro-v1:0"),
+                model=BedrockModel(model_id="us.amazon.nova-pro-v1:0"),
                 system_prompt=ASSET_CURATOR_PROMPT
             )
             
@@ -309,14 +284,14 @@ def asset_curator_agent(creative_brief: str) -> str:
             
             Focus on 3-5 key assets that will create the foundation of this scene.
             """
-            
-            response = asset_curator_instance(formatted_query)
-            
-            # Extract response text
-            if hasattr(response, 'message'):
-                return str(response.message)
-            else:
-                return str(response)
+        
+        response = asset_curator_instance(formatted_query)
+        
+        # Extract response text
+        if hasattr(response, 'message'):
+            return str(response.message)
+        else:
+            return str(response)
             
     except Exception as e:
         logger.error(f"Error in asset curator agent: {str(e)}")
@@ -412,3 +387,8 @@ __all__ = [
     'scene_generator_agent',
     'cdn_processor_tool'
 ]
+
+# import os
+# sketchfab_api_key = os.getenv('MCP_SKETCHFAB_API_KEY', '')
+# print(sketchfab_api_key)
+# print("HERE IT IS")

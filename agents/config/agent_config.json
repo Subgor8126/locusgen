@@ -1,6 +1,6 @@
 {
   "model": {
-    "model_id": "amazon.nova-pro-v1:0",
+    "model_id": "us.amazon.nova-pro-v1:0",
     "max_tokens": 4000,
     "temperature": 0.7,
     "top_p": 0.9,
@@ -22,10 +22,10 @@
       "name": "sketchfab_search",
       "transport_type": "stdio",
       "connection_params": {
-        "command": "python",
-        "args": ["tools/sketchfab_mcp_server.py"]
+        "command": "node",
+        "args": ["tools/sketchfab-mcp/build/index.js"]
       },
-      "enabled": false,
+      "enabled": true,
       "auto_retry": true,
       "timeout": 30
     }
