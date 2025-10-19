@@ -66,7 +66,6 @@ jobs:
     - name: Build and push Docker image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
       run: |
         cd agents
         
@@ -76,11 +75,10 @@ jobs:
         # Create new builder for ARM64
         docker buildx create --name locusgen-builder --use
         
-        # Build and push single image for ARM64
+        # Build and push ONLY ONE image with latest tag
         docker buildx build \
           --platform linux/arm64 \
           --push \
-          --tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
           --tag $ECR_REGISTRY/$ECR_REPOSITORY:latest \
           --file Dockerfile \
           .
@@ -89,25 +87,23 @@ jobs:
         docker buildx rm locusgen-builder
         
         echo "✅ Single image built and pushed successfully"
-        echo "📦 Image URI: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-        echo "🏷️  Latest URI: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
+        echo "🏷️  Image URI: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
     - name: Verify image and update deployment info
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
       run: |
         # Verify the image exists and get its details
         aws ecr describe-images \
           --repository-name $ECR_REPOSITORY \
-          --image-ids imageTag=$IMAGE_TAG \
+          --image-ids imageTag=latest \
           --query 'imageDetails[0].[imageSizeInBytes,imagePushedAt]' \
           --output table
         
         # Get image size in MB
         IMAGE_SIZE=$(aws ecr describe-images \
           --repository-name $ECR_REPOSITORY \
-          --image-ids imageTag=$IMAGE_TAG \
+          --image-ids imageTag=latest \
           --query 'imageDetails[0].imageSizeInBytes' \
           --output text)
         
@@ -115,15 +111,13 @@ jobs:
         
         echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Image URI:** \`$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG\`" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Latest URI:** \`$ECR_REGISTRY/$ECR_REPOSITORY:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "**Image URI:** \`$ECR_REGISTRY/$ECR_REPOSITORY:latest\`" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Image Size:** ${IMAGE_SIZE_MB} MB" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
-        echo "1. Update your AgentCore Runtime to use the new image" >> $GITHUB_STEP_SUMMARY
-        echo "2. The \`latest\` tag will be used automatically if configured" >> $GITHUB_STEP_SUMMARY
+        echo "1. Update your AgentCore Runtime to use: \`$ECR_REGISTRY/$ECR_REPOSITORY:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "2. The image is ready for deployment" >> $GITHUB_STEP_SUMMARY
         
         # Fail if image is suspiciously small (less than 100MB)
         if [ $IMAGE_SIZE_MB -lt 100 ]; then
